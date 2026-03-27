@@ -123,11 +123,9 @@
                                 oninput="updateState()">
                         </div>
                     </div>
-
                     <p id="total-value-nano" class="text-4xl font-black text-slate-900 tracking-tighter">0.00000000</p>
                     <p class="text-[9px] font-bold text-blue-500 uppercase tracking-widest mb-4">Total Portfolio Value
                         (Nano)</p>
-
                     <div class="grid grid-cols-2 gap-2 pt-4 border-t border-slate-50">
                         <div>
                             <p class="stat-label">Yield/Hr</p>
@@ -160,15 +158,28 @@
                             <option value="Sell">Broccoli Sell</option>
                             <option value="Claim">Broccoli Claimed</option>
                             <option value="Feed">Feed Plant (Deduct Broc)</option>
+                            <option value="PurchasePlant">Purchase Plant (Uses Broc)</option>
                         </select>
+
+                        <select id="plant-to-buy"
+                            class="hidden w-full text-xs p-3 bg-green-50 rounded-xl font-bold border border-green-100">
+                            <option value="starter">Starter Plant</option>
+                            <option value="fast">Fast Plant</option>
+                            <option value="big">Big Plant</option>
+                            <option value="golden">Golden Plant</option>
+                            <option value="tree">Tree Plant</option>
+                        </select>
+
                         <input type="number" id="tx-nano" placeholder="NANO Amount"
                             class="w-full text-xs p-3 bg-slate-50 rounded-xl" oninput="autoUnit()">
+
                         <div id="extra-tx" class="hidden space-y-2">
                             <input type="number" id="tx-broc" placeholder="Broccoli Quantity"
                                 class="w-full text-xs p-3 bg-green-50 rounded-xl" oninput="autoUnit()">
                             <input type="number" id="tx-unit" placeholder="Price per Broccoli"
                                 class="w-full text-xs p-3 bg-slate-100 rounded-xl" readonly>
                         </div>
+
                         <button onclick="recordTx()"
                             class="w-full bg-slate-900 text-white py-3 rounded-xl text-[10px] font-black uppercase hover:bg-slate-800">Add
                             Entry</button>
@@ -232,32 +243,48 @@
         function toggleFields() {
             const type = document.getElementById('tx-type').value;
             const nanoInput = document.getElementById('tx-nano');
+            const plantSelect = document.getElementById('plant-to-buy');
+
+            plantSelect.classList.add('hidden');
+
             if (type === 'Claim') nanoInput.placeholder = "Broccoli Amount To Add";
             else if (type === 'Feed') nanoInput.placeholder = "Broccoli Amount To Deduct";
+            else if (type === 'PurchasePlant') {
+                nanoInput.placeholder = "Broccoli Cost of Plant";
+                plantSelect.classList.remove('hidden');
+            }
             else if (type === 'Free') nanoInput.placeholder = "NANO Amount Received";
             else nanoInput.placeholder = "NANO Amount";
-            document.getElementById('extra-tx').classList.toggle('hidden', type === 'Deposit' || type === 'Withdraw' || type === 'Claim' || type === 'Feed' || type === 'Free');
+
+            document.getElementById('extra-tx').classList.toggle('hidden',
+                ['Deposit', 'Withdraw', 'Claim', 'Feed', 'Free', 'PurchasePlant'].includes(type)
+            );
         }
 
         function recordTx() {
             const type = document.getElementById('tx-type').value;
             const val = parseFloat(document.getElementById('tx-nano').value) || 0;
             const brocVal = parseFloat(document.getElementById('tx-broc').value) || 0;
+            const selectedPlant = document.getElementById('plant-to-buy').value;
 
             let entry = {
                 id: Date.now(),
                 ts: `${document.getElementById('tx-date').value} ${document.getElementById('tx-time').value}`,
                 type: type,
-                nano: (type === 'Deposit' || type === 'Withdraw' || type === 'Buy' || type === 'Sell' || type === 'Free') ? val : 0,
-                broc: (type === 'Claim' || type === 'Feed') ? val : brocVal,
-                unit: parseFloat(document.getElementById('tx-unit').value) || 0
+                nano: (['Deposit', 'Withdraw', 'Buy', 'Sell', 'Free'].includes(type)) ? val : 0,
+                broc: (type === 'Claim' || type === 'Feed' || type === 'PurchasePlant') ? val : brocVal,
+                plantType: type === 'PurchasePlant' ? selectedPlant : null
             };
 
-            // Automatic Wallet Adjustments
             if (type === 'Claim') state.wallet += val;
-            if (type === 'Feed') state.wallet -= val;
-            if (type === 'Deposit' || type === 'Free' || type === 'Sell') state.nanoBal += entry.nano;
-            if (type === 'Withdraw' || type === 'Buy') state.nanoBal -= entry.nano;
+            if (type === 'Feed' || type === 'PurchasePlant') state.wallet -= val; // Deduct broccoli for purchase
+            if (['Deposit', 'Free', 'Sell'].includes(type)) state.nanoBal += entry.nano;
+            if (['Withdraw', 'Buy'].includes(type)) state.nanoBal -= entry.nano;
+
+            if (type === 'PurchasePlant') {
+                state.plants[selectedPlant] = (state.plants[selectedPlant] || 0) + 1; // Increment inventory
+                document.getElementById(`q-${selectedPlant}`).value = state.plants[selectedPlant];
+            }
 
             state.ledger.push(entry);
             document.getElementById('current-broccoli').value = state.wallet;
@@ -315,17 +342,17 @@
             body.innerHTML = '';
             [...state.ledger].sort((a, b) => new Date(b.ts) - new Date(a.ts)).forEach(tx => {
                 const isPlus = tx.type === 'Deposit' || tx.type === 'Sell' || tx.type === 'Claim' || tx.type === 'Free';
-                const isBrocOnly = tx.type === 'Claim' || tx.type === 'Feed';
+                const isBroc = tx.type === 'Claim' || tx.type === 'Feed' || tx.type === 'PurchasePlant';
                 body.innerHTML += `<div class="relative pl-4 group">
                     <div class="timeline-dot"></div>
                     <div class="flex justify-between items-start">
                         <div>
                             <p class="text-[8px] font-black text-slate-300 uppercase">${tx.ts}</p>
-                            <p class="text-[10px] font-black text-slate-700 uppercase">${tx.type}</p>
+                            <p class="text-[10px] font-black text-slate-700 uppercase">${tx.type}${tx.plantType ? ': ' + tx.plantType : ''}</p>
                         </div>
                         <div class="text-right">
                             <p class="text-xs font-black ${isPlus ? 'text-green-600' : 'text-red-500'}">
-                                ${isBrocOnly ? (isPlus ? '+' : '-') + tx.broc + ' 🥦' : (isPlus ? '+' : '-') + tx.nano.toFixed(8)}
+                                ${isBroc ? (isPlus ? '+' : '-') + tx.broc + ' 🥦' : (isPlus ? '+' : '-') + tx.nano.toFixed(8)}
                             </p>
                             <button onclick="deleteTx(${tx.id})" class="text-[8px] text-red-400 font-bold uppercase opacity-0 group-hover:opacity-100">Delete</button>
                         </div>

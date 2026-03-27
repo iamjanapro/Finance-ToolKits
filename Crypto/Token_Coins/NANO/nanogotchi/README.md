@@ -27,3 +27,5 @@
 			- Export JSON: Click the Export JSON button to download a file containing your entire transaction history and plant inventory.
 			- Import: On a new device, click Import, select your backup file, and the auditor will perfectly reconstruct your entire financial history.
 			- Snapshot: Use the 📸 Snapshot button to generate a clean, shareable image of your current stats and charts for your daily Logseq reports.
+
+https://iamjanapro.github.io/Finance-ToolKits/Crypto/Token_Coins/NANO/nanogotchi/nanogotchi_new.html
